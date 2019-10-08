@@ -13,6 +13,7 @@ from apache_beam.portability import python_urns
 
 import json
 # import os
+#python2.7 -m dataflowdevfest --input gs://devfest-carros/  --temp_location gs://devfest-temp/ --runner DataflowRunner --project devfestcerrado2019
 # os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/diego/Documentos/Test Google/Credenciais/ml_demo3/credentials/dev/service_account.json"
 # export GOOGLE_APPLICATION_CREDENTIALS="/home/diego/Documentos/Test_Google/Credenciais/ml_demo3/credentials/dev/service_account.json"
 
