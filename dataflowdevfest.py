@@ -10,6 +10,11 @@ from apache_beam.options.pipeline_options import SetupOptions
 from apache_beam.runners.portability import fn_api_runner
 from apache_beam.portability.api import beam_runner_api_pb2
 from apache_beam.portability import python_urns
+from google.cloud import vision
+from google.cloud.vision import types
+from google.cloud.vision import enums
+
+
 
 import json
 # import os
@@ -18,6 +23,24 @@ import json
 # export GOOGLE_APPLICATION_CREDENTIALS="/home/diego/Documentos/Test_Google/Credenciais/ml_demo3/credentials/dev/service_account.json"
 
 path_gs = 'gs://cloud_ml_data/images_jsons/'
+
+
+class Vison(beam.DoFn):
+    
+
+
+
+    def process(self, element):
+        
+        filename = element[0]
+        client = vision.ImageAnnotatorClient()
+        image = types.Image()
+        image.source.image_uri = filename
+        response = client.label_detection(image=image)
+        print(response)
+
+
+
 
 class Shapes(beam.DoFn):
 
@@ -44,38 +67,9 @@ class Shapes(beam.DoFn):
                     'path_img_file' : path_img_file}
 
 
-class FormatOutput(beam.DoFn):
-    def process(self, element):
-
-        path_img_file = element['path_img_file']
-        shape = element['shape']
-        width = element['width']
-        height = element['height']
-
-        points = shape['points']
-        label = shape['label']
-
-        top_left_x = points[0][0] / width
-        bottom_right_x = points[1][0] / width
-        top_left_y = points[0][1] / height
-        bottom_right_y = points[1][1] / height
-
-        # Guarantes the points are not out of range [0,1]
-        top_left_x = 1.0 if top_left_x > 1.0 else top_left_x
-        bottom_right_x = 1.0 if bottom_right_x > 1.0 else bottom_right_x
-        top_left_y = 1.0 if top_left_y > 1.0 else top_left_y
-        bottom_right_y = 1.0 if bottom_right_y > 1.0 else bottom_right_y
-
-        top_left_x = 0.0 if top_left_x < 0.0 else top_left_x
-        bottom_right_x = 0.0 if bottom_right_x < 0.0 else bottom_right_x
-        top_left_y = 0.0 if top_left_y < 0.0 else top_left_y
-        bottom_right_y = 0.0 if bottom_right_y < 0.0 else bottom_right_y
-
-        return ['UNASSIGNED' + ',' + str(path_img_file).replace('.json', '.jpg') + ',' + str(label) + ',' + str(top_left_x) + ',' + str(top_left_y) + ',' + '' + ',' + '' + ',' + str(bottom_right_x) + ',' + str(bottom_right_y) + ',' + '' + ',' + '']
-
-
 def run(argv=None):
-    # python -m dataflowdevfest --input gs://devfest-carros/  --temp_location gs://devfest-temp/ --runner DataflowRunner --project devfestcerrado2019
+    # python -m dataflowdevfest --input gs://devfest-carros/  --temp_location gs://devfest-temp/ --runner DataflowRunner --project devfestcerrado2019  --requirements_file requirements.txt
+
 
 
     parser = argparse.ArgumentParser()
@@ -104,8 +98,8 @@ def run(argv=None):
             p | "Get_all_files" >> beam.io.fileio.MatchFiles(known_args.input + '*.jpg')
             | "Read_all" >> beam.io.fileio.ReadMatches()
             | "Transform Path" >> beam.Map(lambda file: (file.metadata.path, file.metadata.path.split('/')[-1].replace(".jpg", "")))
-            | beam.Map(printer1)
-          #  | "Get_all_shapes" >> beam.ParDo(Shapes())
+          #  | beam.Map(printer1)
+            | "GET Vison API" >> beam.ParDo(Vison())
           #  | beam.Map(printer2)
           #  | "Format_output" >> beam.ParDo(FormatOutput())
         )
