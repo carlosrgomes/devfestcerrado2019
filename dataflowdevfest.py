@@ -16,19 +16,12 @@ from google.cloud.vision import enums
 
 
 
-import json
-# import os
-#python2.7 -m dataflowdevfest --input gs://devfest-carros/  --temp_location gs://devfest-temp/ --runner DataflowRunner --project devfestcerrado2019
-# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/diego/Documentos/Test Google/Credenciais/ml_demo3/credentials/dev/service_account.json"
-# export GOOGLE_APPLICATION_CREDENTIALS="/home/diego/Documentos/Test_Google/Credenciais/ml_demo3/credentials/dev/service_account.json"
 
-path_gs = 'gs://cloud_ml_data/images_jsons/'
+import json
 
 
 class Vison(beam.DoFn):
     
-
-
 
     def process(self, element):
         
@@ -37,39 +30,16 @@ class Vison(beam.DoFn):
         image = types.Image()
         image.source.image_uri = filename
         response = client.label_detection(image=image)
-        print(response)
+        
+        labels = response.label_annotations
 
+        row = {'id': element[1] , 'label1': labels[0].description ,  'label2': labels[1].description, 'label3': labels[2].description  }
+        return row
 
-
-
-class Shapes(beam.DoFn):
-
-    def set_img_path(self, gs):
-        self.gs = gs
-    
-    def process(self, element):
-
-        path_element = element[0]
-        data = element[1]
-
-        shapes = data['shapes']
-        width = data['imageWidth']
-        height = data['imageHeight']
-
-        image_name = path_element.split('/')[-1]
-        #path_img_file = self.gs + image_name
-        path_img_file = path_gs + image_name
-
-        for shape in shapes:
-            yield  {'shape' : shape,
-                    'width' : width,
-                    'height' : height,
-                    'path_img_file' : path_img_file}
 
 
 def run(argv=None):
     # python -m dataflowdevfest --input gs://devfest-carros/  --temp_location gs://devfest-temp/ --runner DataflowRunner --project devfestcerrado2019  --requirements_file requirements.txt
-
 
 
     parser = argparse.ArgumentParser()
@@ -81,30 +51,35 @@ def run(argv=None):
 
 
     known_args, pipeline_args = parser.parse_known_args(argv)
-    # pipeline_args.extend([
-    #     '--job_name=job-test'
-    # ])
+    
 
     pipeline_options = PipelineOptions(pipeline_args)
     pipeline_options.view_as(SetupOptions).save_main_session = True
     with beam.Pipeline(options=pipeline_options) as p:
 
-        def printer1(x):
-            print(x)
-            return x 
+        
       
 
         output = (
             p | "Get_all_files" >> beam.io.fileio.MatchFiles(known_args.input + '*.jpg')
             | "Read_all" >> beam.io.fileio.ReadMatches()
             | "Transform Path" >> beam.Map(lambda file: (file.metadata.path, file.metadata.path.split('/')[-1].replace(".jpg", "")))
-          #  | beam.Map(printer1)
             | "GET Vison API" >> beam.ParDo(Vison())
-          #  | beam.Map(printer2)
-          #  | "Format_output" >> beam.ParDo(FormatOutput())
+            | 'Write to BigQuery' >> beam.io.Write( beam.io.BigQuerySink(
+             # The table name is a required argument for the BigQuery sink.
+             # In this case we use the value passed in from the command line.
+             dataset='demodataflow',
+             table='tabelademo',
+             # Here we use the simplest way of defining a schema:
+             # fieldName:fieldType
+             schema='id:STRING,label1:STRING,label2:STRING,label3:STRING',
+             # Creates the table in BigQuery if it does not yet exist.
+             create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
+             # Deletes all data in the BigQuery table before writing.
+             write_disposition=beam.io.BigQueryDisposition.WRITE_TRUNCATE))
+         
         )
         
-        #output | WriteToText(known_args.output, file_name_suffix='.csv', header='set, img_path, label, x1, y1, " " , " " , x2, y2, " " , " "', shard_name_template='')
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
